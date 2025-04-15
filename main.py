@@ -88,7 +88,7 @@ def train_flow(flow, model_name="MNISTFlow"):
     train_data, val_data = split_data(train_data)
 
     # Print data shapes.
-    logging.info(f"📏 Train data size: {len(train_data)}")
+    logging.info("📏 Train data size: %s", len(train_data))
 
     # Create data loaders.
     train_loader = get_data_loader(
@@ -111,7 +111,7 @@ def train_flow(flow, model_name="MNISTFlow"):
         flow.load_state_dict(intermediate_checkpoint["state_dict"])
         result = intermediate_checkpoint.get("result", None)
     else:
-        logging.info("🏃🏻 Start training of", model_name)
+        logging.info("🏃🏻 Start training of %s", model_name)
         trainer.fit(flow, train_loader, val_loader)
 
     # Test best model on validation and test set if no result has been found
@@ -132,14 +132,14 @@ def train_flow(flow, model_name="MNISTFlow"):
 
 def main():
 
-    logging.info(f"👾 Using device: {device}")
+    logging.info("👾 Using device: %s", device)
     
     flow_model = create_simple_flow(use_variational_dequantization=False)
     flow_model, result = train_flow(flow_model, model_name="MNISTFlow")
     
-    logging.info(f"✨ Test result: {result['test']}")
-    logging.info(f"🔎 Validation result: {result['val']}")
-    logging.info(f"🕐 Time per sample: {result['time']}")
+    logging.info("✨ Test result: %d", result['test'])
+    logging.info("🔎 Validation result: %d", result['val'])
+    logging.info("🕐 Time per sample: %d", result['time'])
 
 
 if __name__ == "__main__":
