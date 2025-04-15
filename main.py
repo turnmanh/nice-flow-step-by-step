@@ -2,6 +2,7 @@ import os
 import time
 import pytorch_lightning as pl
 import torch
+import logging
 
 from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor
 
@@ -18,6 +19,14 @@ from src.flow.utils import create_checkerboard_mask, create_channel_mask
 CHECKPOINT_PATH: str = os.path.join(os.path.dirname(__file__), "checkpoints")
 DEVICE: str = "cuda" if torch.cuda.is_available() else "cpu"
 NUM_WORKERS_DATA: int = 4
+
+logging.basicConfig(
+    level=logging.INFO,
+    handlers=[
+        logging.FileHandler("logs/main.log"),
+        logging.StreamHandler()
+    ]
+)
 
 
 def create_simple_flow(use_variational_dequantization=True):
@@ -58,9 +67,9 @@ def train_flow(flow, model_name="MNISTFlow"):
     # Create a PyTorch Lightning trainer
     trainer = pl.Trainer(
         default_root_dir=os.path.join(CHECKPOINT_PATH, model_name),
-        accelerator="gpu", # if str(device).startswith("cuda") else "cpu",
+        accelerator="gpu" if str(device).startswith("cuda") else "cpu",
         devices=1,
-        max_epochs=200,
+        max_epochs=2,
         gradient_clip_val=1.0,
         callbacks=[
             ModelCheckpoint(save_weights_only=True, mode="min", monitor="val_bpd"),
@@ -79,7 +88,7 @@ def train_flow(flow, model_name="MNISTFlow"):
     train_data, val_data = split_data(train_data)
 
     # Print data shapes.
-    print(f"Train data shape: {len(train_data)}")
+    logging.info(f"📏 Train data size: {len(train_data)}")
 
     # Create data loaders.
     train_loader = get_data_loader(
@@ -97,12 +106,12 @@ def train_flow(flow, model_name="MNISTFlow"):
     # Check whether pretrained model exists. If yes, load it and skip training
     pretrained_filename = os.path.join(CHECKPOINT_PATH, model_name + ".ckpt")
     if os.path.isfile(pretrained_filename):
-        print("Found pretrained model, loading...")
+        logging.info("📦 Found pretrained model, loading ...")
         intermediate_checkpoint = torch.load(pretrained_filename, map_location=device)
         flow.load_state_dict(intermediate_checkpoint["state_dict"])
         result = intermediate_checkpoint.get("result", None)
     else:
-        print("Start training", model_name)
+        logging.info("🏃🏻 Start training of", model_name)
         trainer.fit(flow, train_loader, val_loader)
 
     # Test best model on validation and test set if no result has been found
@@ -122,15 +131,19 @@ def train_flow(flow, model_name="MNISTFlow"):
 
 
 def main():
-    print(f"Using device: {device}")
+
+    logging.info(f"👾 Using device: {device}")
+    
     flow_model = create_simple_flow(use_variational_dequantization=False)
     flow_model, result = train_flow(flow_model, model_name="MNISTFlow")
-    print(f"Test result: {result['test']}")
-    print(f"Validation result: {result['val']}")
-    print(f"Time per sample: {result['time']}")
+    
+    logging.info(f"✨ Test result: {result['test']}")
+    logging.info(f"🔎 Validation result: {result['val']}")
+    logging.info(f"🕐 Time per sample: {result['time']}")
 
 
 if __name__ == "__main__":
+    
     # Create the checkpoint directory if it doesn't exist.
     if not os.path.exists(CHECKPOINT_PATH):
         os.makedirs(CHECKPOINT_PATH)
