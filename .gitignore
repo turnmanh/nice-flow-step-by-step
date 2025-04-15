@@ -8,7 +8,6 @@ __pycache__/
 .pytest_cache/
 
 checkpoints/
-datasets/MNIST/
 logs/
 
 # Ignore testing files.
