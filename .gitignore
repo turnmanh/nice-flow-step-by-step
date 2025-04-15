@@ -1,0 +1,15 @@
+.vscode/
+.idea/
+
+.env/
+
+# Ignore exec. files.
+__pycache__/
+.pytest_cache/
+
+checkpoints/
+datasets/MNIST/
+logs/
+
+# Ignore testing files.
+test.py
