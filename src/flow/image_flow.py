@@ -116,13 +116,13 @@ class ImageFlow(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         """Performs a training step."""
         loss = self.forward(batch[0])
-        self.log("train_loss (bpd)", loss)
+        self.log("train_loss_bpd", loss)
         return loss
 
     def validation_step(self, batch, batch_idx):
         """Performs a validation step."""
         loss = self.forward(batch[0])
-        self.log("val_loss (bpd)", loss)
+        self.log("val_loss_bpd", loss)
         return loss
 
     def test_step(self, batch, batch_idx) -> None:
