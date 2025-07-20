@@ -30,7 +30,7 @@ class Dequantization(nn.Module):
             )
             assert not torch.isnan(z).any(), (
                 f"Data space tensor 'z' contains NaN values after sigmoid."
-                f"Input was {z}."
+                f"Input was {x}."
             )
             z *= self.strides
             z = (
@@ -45,7 +45,7 @@ class Dequantization(nn.Module):
             )
             assert not torch.isnan(z).any(), (
                 f"Latent space tensor 'z' contains NaN values after dequantization."
-                f"Input was {z}."
+                f"Input was {x}."
             )
             z, log_det_jacobian = self.sigmoid(
                 x=z, log_det_jacobian=log_det_jacobian, reverse=True
@@ -145,14 +145,17 @@ class VariationalDequantization(Dequantization):
         self, x: torch.Tensor, log_det_jacobian: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor]:
         z = x.to(torch.float32)
-        image = (z / self.strides) * 2 - 1  # Normalize to [-1, 1].
+        image = (z / (self.strides - 1)) * 2 - 1  # Normalize to [-1, 1].
 
         # Compute the noise to add.
-        noise = torch.randn_like(z)
-        # Apply the inv. sigmoid, the logit transform, first to increase the
-        # latent space to (-inf, inf).
-        noise, log_det_jacobian = self.sigmoid(
-            x=noise, log_det_jacobian=log_det_jacobian, reverse=True
+        noise = torch.randn_like(z).detach()
+
+        # The log probability of the noise under the base distribution needs to be
+        # subtracted from the log determinant.
+        log_det_jacobian -= (
+            torch.distributions.Normal(0.0, 1.0)
+            .log_prob(noise)
+            .sum(dim=[1, 2, 3])
         )
 
         for flow in self.variational_flows:
@@ -167,6 +170,6 @@ class VariationalDequantization(Dequantization):
 
         # Apply dequantization with computed noise.
         # We have to add to the strides as we've added noise to the image.
-        z = (z + noise) / (self.strides + 1)
-        log_det_jacobian -= torch.log(self.strides + 1) * z.shape[1:].numel()
+        z = (z + noise) / (self.strides)
+        log_det_jacobian -= torch.log(self.strides) * z.shape[1:].numel()
         return z, log_det_jacobian

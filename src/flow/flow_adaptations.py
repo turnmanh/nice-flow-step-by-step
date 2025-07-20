@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from toch.distributions import Distribution
+from torch.distributions import Distribution
 
 
 class SqueezeFlow(nn.Module):
@@ -84,6 +84,11 @@ class SplitFlow(nn.Module):
         self.split_factor = split_factor
         self.prior_dist = prior_dist
 
+    @property
+    def split_factor(self) -> int:
+        """Get the split factor."""
+        return self._split_factor
+
     @split_factor.setter
     def split_factor(self, value: int) -> None:
         """Set the split factor."""
@@ -92,11 +97,6 @@ class SplitFlow(nn.Module):
         if value != 2:
             raise NotImplementedError("Only split factor of 2 is implemented.")
         self._split_factor = value
-
-    @property
-    def split_factor(self) -> int:
-        """Get the split factor."""
-        return self._split_factor
 
     def forward(
         self, x: torch.Tensor, log_det_jacobian: torch.Tensor, reverse: bool = False

@@ -54,7 +54,7 @@ def split_data(
 
 def get_data_loader(
     data: torch.Tensor,
-    batch_size: int = 32,
+    batch_size: int = 64,
     shuffle: bool = True,
     num_workers: int = 0,
     **kwargs,
@@ -77,9 +77,10 @@ def get_data_loader(
 
 def load_mnist_data(
     root_data_path: str = "./datasets",
-    transformations: transforms = transforms.Compose(
+    transformations: transforms.Compose = transforms.Compose(
         [transforms.ToTensor(), discretize_image]
     ),
+    fraction: float = 1.0,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Loads MNIST dataset.
 
@@ -92,5 +93,10 @@ def load_mnist_data(
     mnist_data_test = torchvision.datasets.MNIST(
         root=root_data_path, train=False, download=True, transform=transformations
     )
+    max_idx = int(len(mnist_data_train) * fraction)
+    mnist_data_train.data = mnist_data_train.data[:max_idx]
+    mnist_data_train.targets = mnist_data_train.targets[:max_idx]
+    mnist_data_test.data = mnist_data_test.data[:max_idx]
+    mnist_data_test.targets = mnist_data_test.targets[:max_idx]
     return mnist_data_train, mnist_data_test
 

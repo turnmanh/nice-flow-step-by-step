@@ -46,7 +46,7 @@ def create_checkerboard_mask(
     return mask
 
 
-def create_channel_mask(c_in: int, invert: bool = False) -> torch.Tensor:
+def create_channel_mask(input_channels: int, invert: bool = False) -> torch.Tensor:
     """Creates a channel mask for the given number of channels.
 
     Args:
@@ -57,13 +57,13 @@ def create_channel_mask(c_in: int, invert: bool = False) -> torch.Tensor:
     Returns:
         Channel mask tensor.
     """
-    mask = torch.zeros(c_in)
+    mask = torch.zeros(input_channels)
     mask[0::2] = 1
 
     if invert:
         mask = 1 - mask
 
     # Reshape the mask to match the network transformation shapes. 
-    mask = mask.view(1, c_in, 1, 1)
+    mask = mask.view(1, input_channels, 1, 1)
 
     return mask

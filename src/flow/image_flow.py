@@ -153,4 +153,4 @@ class ImageFlow(pl.LightningModule):
         ll_bpd = compute_bpd(ll, torch.tensor(batch[0].shape[1:]))
         ll_bpd = ll_bpd.mean()
 
-        self.log("test_loss (bpd)", ll_bpd)
+        self.log("test_loss__bpd", ll_bpd)

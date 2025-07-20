@@ -9,6 +9,7 @@ from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor
 from src.data.data import plot_image_samples, get_samples_from_data_loader
 from src.data.utils import load_mnist_data, split_data, get_data_loader
 from src.flow.coupling_layers import CouplingLayer
+from src.flow.flow_adaptations import SqueezeFlow, SplitFlow
 from src.flow.image_flow import ImageFlow
 from src.flow.networks import GatedConvolution2DNetwork
 from src.flow.quantization_layers import Dequantization, VariationalDequantization
@@ -22,14 +23,19 @@ NUM_WORKERS_DATA: int = 4
 
 logging.basicConfig(
     level=logging.INFO,
-    handlers=[
-        logging.FileHandler("logs/main.log"),
-        logging.StreamHandler()
-    ]
+    handlers=[logging.FileHandler("logs/main.log"), logging.StreamHandler()],
 )
 
 
-def create_simple_flow(use_variational_dequantization=True):
+def create_simple_flow(use_variational_dequantization=True) -> ImageFlow:
+    """Builds a simple flow model without adaptations for high dimensional data.
+
+    Args:
+        use_variational_dequantization: Dequantization technique to use.
+
+    Returns:
+        ImageFlow object as subclass of nn.Module.
+    """
     flow_layers = []
     if use_variational_dequantization:
         variational_dequantization_layers = [
@@ -63,7 +69,58 @@ def create_simple_flow(use_variational_dequantization=True):
     return flow_model
 
 
-def train_flow(flow, model_name="MNISTFlow"):
+def create_multi_scale_flow() -> ImageFlow:
+    """Builds flow capable of handling multi-scale images.
+
+    The architecture includes squeeze and split operations to manage the
+    dimensionality of the data.
+    """
+    flow_layers = []
+
+    variational_dequantization_layers = [
+        CouplingLayer(
+            network=GatedConvolution2DNetwork(
+                input_channels=2, output_channels=2, hidden_channels=16
+            ),
+            mask=create_checkerboard_mask(shape=(28, 28), invert=(i % 2 == 1)),
+            input_channels=1,
+        )
+        for i in range(4)
+    ]
+    flow_layers += [VariationalDequantization(variational_dequantization_layers)]
+
+    flow_layers += [
+        CouplingLayer(
+            network=GatedConvolution2DNetwork(input_channels=1, hidden_channels=32),
+            mask=create_checkerboard_mask(shape=(28, 28), invert=(i % 2 == 1)),
+            input_channels=1,
+        )
+        for i in range(2)
+    ]
+    flow_layers += [SqueezeFlow()]
+    for i in range(2):
+        flow_layers += [
+            CouplingLayer(
+                network=GatedConvolution2DNetwork(input_channels=4, hidden_channels=48),
+                mask=create_channel_mask(input_channels=4, invert=(i % 2 == 1)),
+                input_channels=4,
+            )
+        ]
+    flow_layers += [SplitFlow(split_factor=2), SqueezeFlow()]
+    for i in range(4):
+        flow_layers += [
+            CouplingLayer(
+                network=GatedConvolution2DNetwork(input_channels=8, hidden_channels=64),
+                mask=create_channel_mask(input_channels=8, invert=(i % 2 == 1)),
+                input_channels=8,
+            )
+        ]
+
+    flow_model = ImageFlow(flow_layers).to(device)
+    return flow_model
+
+
+def train_flow(flow: ImageFlow, model_name="MNISTFlow"):
     # Create a PyTorch Lightning trainer
     trainer = pl.Trainer(
         default_root_dir=os.path.join(CHECKPOINT_PATH, model_name),
@@ -84,7 +141,7 @@ def train_flow(flow, model_name="MNISTFlow"):
     )
 
     # Load MNIST data.
-    train_data, test_data = load_mnist_data()
+    train_data, test_data = load_mnist_data(fraction=0.05)
     train_data, val_data = split_data(train_data)
 
     # Print data shapes.
@@ -124,7 +181,7 @@ def train_flow(flow, model_name="MNISTFlow"):
         result = {
             "test": test_result,
             "val": val_result,
-            "time": duration / len(test_loader) / flow.import_samples,
+            "time": duration / len(test_loader),
         }
 
     return flow, result
@@ -133,17 +190,18 @@ def train_flow(flow, model_name="MNISTFlow"):
 def main():
 
     logging.info("👾 Using device: %s", device)
-    
-    flow_model = create_simple_flow(use_variational_dequantization=False)
+
+    flow_model = create_simple_flow(use_variational_dequantization=True)
+    # flow_model = create_multi_scale_flow()
     flow_model, result = train_flow(flow_model, model_name="MNISTFlow")
-    
-    logging.info("✨ Test result: %d", result['test'])
-    logging.info("🔎 Validation result: %d", result['val'])
-    logging.info("🕐 Time per sample: %d", result['time'])
+
+    logging.info("✨ Test result: %f", result["test"][0]["test_loss__bpd"])
+    logging.info("🔎 Validation result: %f", result["val"][0]["test_loss__bpd"])
+    logging.info("🕐 Time per sample: %f", result["time"])
 
 
 if __name__ == "__main__":
-    
+
     # Create the checkpoint directory if it doesn't exist.
     if not os.path.exists(CHECKPOINT_PATH):
         os.makedirs(CHECKPOINT_PATH)
